@@ -1,4 +1,4 @@
-import type { PlayerCharacter, Scene } from '$lib/game/types';
+import type { , Scene } from '$lib/game/types';
 
 interface GameState {
   player: PlayerCharacter | null;
