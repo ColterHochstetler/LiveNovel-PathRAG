@@ -1,21 +1,30 @@
-export const DEFAULT_CHAT_MODEL: string = 'gemini-1.5-flash-latest';
+export const DEFAULT_CHAT_MODEL: string = 'gemini-flash';
 
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+interface ChatModel {
+	id: string;
+	name: string;
+	description: string;
+}
 
-// Create an instance of the Google Generative AI provider
-export const google = createGoogleGenerativeAI({});
-
-// You can keep your UI definitions if you want, or manage them elsewhere.
-// This part is for the model selector in the UI.
-export const chatModels = [
+export const chatModels: Array<ChatModel> = [
 	{
 		id: 'gemini-flash',
-		name: 'Gemini 1.5 Flash',
-		description: 'Fast and versatile model for chat.'
+		name: 'Gemini Flash',
+		description: 'Fast and versatile model from Google.'
 	},
 	{
-	 	id: 'gemini-pro',
-		name: 'Gemini 1.5 Pro',
-		description: 'Most capable model for complex reasoning.'
+		id: 'gemini-pro',
+		name: 'Gemini Pro',
+		description: 'Advanced reasoning from Google.'
+	},
+    {
+		id: 'chat-model',
+		name: 'Chat model',
+		description: 'Primary model for all-purpose chat'
+	},
+	{
+		id: 'chat-model-reasoning',
+		name: 'Reasoning model',
+		description: 'Uses advanced reasoning'
 	}
 ];

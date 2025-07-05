@@ -1,4 +1,4 @@
-mport { createXai } from '@ai-sdk/xai';
+import { createXai } from '@ai-sdk/xai';
 import { createGroq } from '@ai-sdk/groq';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { customProvider, extractReasoningMiddleware, wrapLanguageModel } from 'ai';
