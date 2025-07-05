@@ -35,3 +35,6 @@ tiktoken
 torch
 transformers
 xxhash
+
+# Chat
+atomic-agents
