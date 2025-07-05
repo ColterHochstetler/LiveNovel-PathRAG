@@ -13,7 +13,9 @@ import {
 	streamText,
 	type UIMessage
 } from 'ai';
-import { ok, safeTry } from 'neverthrow';
+import { ok, safeTry, fromPromise } from 'neverthrow';
+
+import { AIInternalError } from '$lib/errors/ai';
 
 export async function POST({ request, locals: { user }, cookies }) {
 	// TODO: zod?
@@ -35,40 +37,56 @@ export async function POST({ request, locals: { user }, cookies }) {
 	}
 
 	if (user) {
-		await safeTry(async function* () {
-			let chat: Chat;
-			const chatResult = await getChatById({ id });
-			if (chatResult.isErr()) {
-				if (chatResult.error._tag !== 'DbEntityNotFoundError') {
-					return chatResult;
-				}
-				const title = yield* generateTitleFromUserMessage({ message: userMessage });
-				chat = yield* saveChat({ id, userId: user.id, title });
-			} else {
-				chat = chatResult.value;
+	const result = await safeTry(async function* () {
+		let chat: Chat;
+		const chatResult = await getChatById({ id });
+
+		if (chatResult.isErr()) {
+		if (chatResult.error._tag !== 'DbEntityNotFoundError') {
+			// Forwarding the specific database error
+			return err(new Error(`Database error: ${chatResult.error.message}`));
+		}
+		const titleResult = await fromPromise(
+			generateTitleFromUserMessage({ message: userMessage }),
+			(e) => new AIInternalError("Failed inpost attempted in api/chat/servers.ts: ", { cause: e }) 
+		);
+
+		if (titleResult.isErr()) {
+			// Specific error for title generation failure
+			return err(new Error('Failed to generate chat title from AI.'));
+		}
+
+		chat = yield* saveChat({ id, userId: user.id, title: titleResult.value });
+		} else {
+		chat = chatResult.value;
+		}
+
+		if (chat.userId !== user.id) {
+		// Using a specific error for forbidden access
+		return err(new Error('Forbidden: You do not have access to this chat.'));
+		}
+
+		yield* saveMessages({
+		messages: [
+			{
+			chatId: id,
+			id: userMessage.id,
+			role: 'user',
+			parts: userMessage.parts,
+			attachments: userMessage.experimental_attachments ?? [],
+			createdAt: new Date()
 			}
+		]
+		});
 
-			if (chat.userId !== user.id) {
-				error(403, 'Forbidden');
-			}
+		return ok(undefined);
+	});
 
-			yield* saveMessages({
-				messages: [
-					{
-						chatId: id,
-						id: userMessage.id,
-						role: 'user',
-						parts: userMessage.parts,
-						attachments: userMessage.experimental_attachments ?? [],
-						createdAt: new Date()
-					}
-				]
-			});
-
-			return ok(undefined);
-		}).orElse(() => error(500, 'An error occurred while processing your request'));
+	if (result.isErr()) {
+		// Now, instead of a generic message, we use the specific error message
+		error(500, result.error.message);
 	}
-
+	}
 	return createDataStreamResponse({
 		execute: (dataStream) => {
 			const result = streamText({

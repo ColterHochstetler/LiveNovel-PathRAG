@@ -20,12 +20,11 @@ const google = createGoogleGenerativeAI({ apiKey: GOOGLE_GENERATIVE_AI_API_KEY }
 
 // --- Custom Provider Definition ---
 export const myProvider = customProvider({
-  // Define only the models you want to override or alias.
   languageModels: {
 	'open-router': openrouter('openrouter'),
-    'gemini-flash': google('gemini-1.5-flash-latest'),
+    'gemini-flash': google('gemini-2.5-flash-latest'),
     'gemini-pro': google('gemini-1.5-pro-latest'),
-	'local-model': lmstudio('google/gemma-3-12b'),
+	'local-model': lmstudio('model'),
 
 
   },

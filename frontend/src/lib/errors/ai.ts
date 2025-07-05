@@ -1,8 +1,8 @@
 import { TaggedError } from './tagged-error';
 
 export class AIInternalError extends TaggedError<'AIInternalError'> {
-	constructor(options: ErrorOptions = {}) {
-		super('Internal error', options);
+	constructor(message = 'Internal AI error', options: ErrorOptions = {}) {
+		super(message, options);
 	}
 }
 

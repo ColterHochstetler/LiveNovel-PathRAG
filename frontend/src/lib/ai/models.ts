@@ -23,13 +23,8 @@ export const chatModels: Array<ChatModel> = [
 		description: 'Advanced reasoning from Google.'
 	},
     {
-		id: 'chat-model',
-		name: 'Chat model',
-		description: 'Primary model for all-purpose chat'
+		id: 'open-router',
+		name: 'Open Router',
+		description: 'Whatever you have set in the code lol'
 	},
-	{
-		id: 'chat-model-reasoning',
-		name: 'Reasoning model',
-		description: 'Uses advanced reasoning'
-	}
 ];

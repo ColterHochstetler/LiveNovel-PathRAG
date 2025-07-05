@@ -37,7 +37,7 @@ export function getAuthUser(email: string): ResultAsync<AuthUser, DbError> {
 	return safeTry(async function* () {
 		const userResult = yield* fromPromise(
 			db.select().from(user).where(eq(user.email, email)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get user by email', { cause: e })
 		);
 		return unwrapSingleQueryResult(userResult, email, 'User');
 	});
@@ -47,7 +47,7 @@ export function getUser(email: string): ResultAsync<User, DbError> {
 	return safeTry(async function* () {
 		const userResult = yield* fromPromise(
 			db.select().from(user).where(eq(user.email, email)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get non-auth user',{ cause: e })
 		);
 		const { password: _, ...rest } = yield* unwrapSingleQueryResult(userResult, email, 'User');
 
@@ -62,10 +62,7 @@ export function createAuthUser(email: string, password: string): ResultAsync<Aut
 
 		const userResult = yield* fromPromise(
 			db.insert(user).values({ email, password: hash }).returning(),
-			(e) => {
-				console.error(e);
-				return new DbInternalError({ cause: e });
-			}
+			(e) => new DbInternalError('Failed to create a new user', { cause: e })
 		);
 
 		return unwrapSingleQueryResult(userResult, email, 'User');
@@ -76,7 +73,7 @@ export function createSession(value: Session): ResultAsync<Session, DbError> {
 	return safeTry(async function* () {
 		const sessionResult = yield* fromPromise(
 			db.insert(session).values(value).returning(),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to create session', { cause: e })
 		);
 		return unwrapSingleQueryResult(sessionResult, value.id, 'Session');
 	});
@@ -92,7 +89,7 @@ export function getFullSession(
 				.from(session)
 				.innerJoin(user, eq(session.userId, user.id))
 				.where(eq(session.id, sessionId)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get full session: ', { cause: e })
 		);
 		return unwrapSingleQueryResult(sessionResult, sessionId, 'Session');
 	});
@@ -102,7 +99,7 @@ export function deleteSession(sessionId: string): ResultAsync<undefined, DbError
 	return safeTry(async function* () {
 		yield* fromPromise(
 			db.delete(session).where(eq(session.id, sessionId)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to delete session: ', { cause: e })
 		);
 
 		return ok(undefined);
@@ -117,7 +114,7 @@ export function extendSession(sessionId: string): ResultAsync<Session, DbError> 
 				.set({ expiresAt: new Date(Date.now() + ms('30d')) })
 				.where(eq(session.id, sessionId))
 				.returning(),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to extend session: ', { cause: e })
 		);
 
 		return unwrapSingleQueryResult(sessionResult, sessionId, 'Session');
@@ -128,7 +125,7 @@ export function deleteSessionsForUser(userId: string): ResultAsync<undefined, Db
 	return safeTry(async function* () {
 		yield* fromPromise(
 			db.delete(session).where(eq(session.userId, userId)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to delete session for user: ', { cause: e })
 		);
 
 		return ok(undefined);
@@ -155,7 +152,7 @@ export function saveChat({
 					title
 				})
 				.returning(),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to save chat: ', { cause: e })
 		);
 
 		return unwrapSingleQueryResult(insertResult, id, 'Chat');
@@ -171,7 +168,7 @@ export function deleteChatById({ id }: { id: string }): ResultAsync<undefined, D
 		];
 
 		for (const action of actions) {
-			yield* fromPromise(action(), (e) => new DbInternalError({ cause: e }));
+			yield* fromPromise(action(), (e) => new DbInternalError('Failed to delet chat by ID: ', { cause: e }));
 		}
 
 		return ok(undefined);
@@ -181,7 +178,7 @@ export function deleteChatById({ id }: { id: string }): ResultAsync<undefined, D
 export function getChatsByUserId({ id }: { id: string }): ResultAsync<Chat[], DbError> {
 	return fromPromise(
 		db.select().from(chat).where(eq(chat.userId, id)).orderBy(desc(chat.createdAt)),
-		(e) => new DbInternalError({ cause: e })
+		(e) => new DbInternalError('Failed to get chats by user id: ', { cause: e })
 	);
 }
 
@@ -189,7 +186,7 @@ export function getChatById({ id }: { id: string }): ResultAsync<Chat, DbError> 
 	return safeTry(async function* () {
 		const chatResult = yield* fromPromise(
 			db.select().from(chat).where(eq(chat.id, id)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get chat by id: ',{cause: e })
 		);
 
 		return unwrapSingleQueryResult(chatResult, id, 'Chat');
@@ -204,7 +201,7 @@ export function saveMessages({
 	return safeTry(async function* () {
 		const insertResult = yield* fromPromise(
 			db.insert(message).values(messages).returning(),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to save message: ',{ cause: e })
 		);
 
 		return ok(insertResult);
@@ -215,7 +212,7 @@ export function getMessagesByChatId({ id }: { id: string }): ResultAsync<Message
 	return safeTry(async function* () {
 		const messages = yield* fromPromise(
 			db.select().from(message).where(eq(message.chatId, id)).orderBy(asc(message.createdAt)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get messages by chat ID: ',{ cause: e })
 		);
 
 		return ok(messages);
@@ -244,7 +241,7 @@ export function voteMessage({
 					target: [vote.messageId, vote.chatId],
 					set: { isUpvoted: type === 'up' }
 				}),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to vote message: ',{ cause: e })
 		);
 		return ok(undefined);
 	});
@@ -253,7 +250,7 @@ export function voteMessage({
 export function getVotesByChatId({ id }: { id: string }): ResultAsync<Vote[], DbError> {
 	return fromPromise(
 		db.select().from(vote).where(eq(vote.chatId, id)),
-		(e) => new DbInternalError({ cause: e })
+		(e) => new DbInternalError('Failed to get votes by chat ID: ',{ cause: e })
 	);
 }
 
@@ -343,7 +340,7 @@ export function saveSuggestions({
 }): ResultAsync<Suggestion[], DbError> {
 	return fromPromise(
 		db.insert(suggestion).values(suggestions).returning(),
-		(e) => new DbInternalError({ cause: e })
+		(e) => new DbInternalError('Failed to save suggestions: ',{ cause: e })
 	);
 }
 
@@ -354,7 +351,7 @@ export function getSuggestionsByDocumentId({
 }): ResultAsync<Suggestion[], DbError> {
 	return fromPromise(
 		db.select().from(suggestion).where(eq(suggestion.documentId, documentId)),
-		(e) => new DbInternalError({ cause: e })
+		(e) => new DbInternalError('Failed to get suggestions by document ID: ',{ cause: e })
 	);
 }
 
@@ -362,7 +359,7 @@ export function getMessageById({ id }: { id: string }): ResultAsync<Message, DbE
 	return safeTry(async function* () {
 		const messageResult = yield* fromPromise(
 			db.select().from(message).where(eq(message.id, id)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to get messages by ID: ',{ cause: e })
 		);
 
 		return unwrapSingleQueryResult(messageResult, id, 'Message');
@@ -382,17 +379,17 @@ export function deleteMessagesByChatIdAfterTimestamp({
 				.select({ id: message.id })
 				.from(message)
 				.where(and(eq(message.chatId, chatId), gte(message.createdAt, timestamp))),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to delete messages (fromPromise): ',{ cause: e })
 		);
 		const messageIds = messagesToDelete.map((message) => message.id);
 		if (messageIds.length > 0) {
 			const votes = fromPromise(
 				db.delete(vote).where(and(eq(vote.chatId, chatId), inArray(vote.messageId, messageIds))),
-				(e) => new DbInternalError({ cause: e })
+				(e) => new DbInternalError('Failed to do something with delete messages, idk: ',{ cause: e })
 			);
 			const messages = fromPromise(
 				db.delete(message).where(and(eq(message.chatId, chatId), inArray(message.id, messageIds))),
-				(e) => new DbInternalError({ cause: e })
+				(e) => new DbInternalError('Failed to do something with delete messages, idk v2: ',{ cause: e })
 			);
 			yield* votes;
 			yield* messages;
@@ -422,7 +419,7 @@ export function updateChatVisiblityById({
 	return safeTry(async function* () {
 		yield* fromPromise(
 			db.update(chat).set({ visibility }).where(eq(chat.id, chatId)),
-			(e) => new DbInternalError({ cause: e })
+			(e) => new DbInternalError('Failed to update chat visibility by id: ',{ cause: e })
 		);
 		return ok(undefined);
 	});

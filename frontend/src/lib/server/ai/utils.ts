@@ -19,7 +19,7 @@ export function generateTitleFromUserMessage({
           - do not use quotes or colons`,
 				prompt: JSON.stringify(message)
 			}),
-			(e) => new AIInternalError({ cause: e })
+			(e) => new AIInternalError('Failed to generate title from user message', { cause: e })
 		);
 
 		return ok(result.text);

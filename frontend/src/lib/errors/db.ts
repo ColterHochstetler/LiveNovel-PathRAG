@@ -12,8 +12,8 @@ export class DbEntityNotFoundError extends TaggedError<'DbEntityNotFoundError'> 
 }
 
 export class DbInternalError extends TaggedError<'DbInternalError'> {
-	constructor(options: ErrorOptions = {}) {
-		super('Internal error', options);
+	constructor(message = 'Internal database error', options: ErrorOptions = {}) {
+		super(message, options);
 	}
 }
 
