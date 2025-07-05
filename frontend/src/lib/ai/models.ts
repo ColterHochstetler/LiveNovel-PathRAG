@@ -1,4 +1,4 @@
-export const DEFAULT_CHAT_MODEL: string = 'gemini-flash';
+export const DEFAULT_CHAT_MODEL: string = 'local-model';
 
 interface ChatModel {
 	id: string;
@@ -7,6 +7,11 @@ interface ChatModel {
 }
 
 export const chatModels: Array<ChatModel> = [
+	{
+		id: 'local-model',
+		name: 'LM Studios (Local)',
+		description: 'Whatever local model you have running.'
+	},
 	{
 		id: 'gemini-flash',
 		name: 'Gemini Flash',

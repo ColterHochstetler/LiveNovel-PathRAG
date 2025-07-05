@@ -1,8 +1,14 @@
 import { createXai } from '@ai-sdk/xai';
 import { createGroq } from '@ai-sdk/groq';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { customProvider, extractReasoningMiddleware, wrapLanguageModel } from 'ai';
 import { XAI_API_KEY, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY } from '$env/static/private';
+
+const lmstudio = createOpenAICompatible({
+  name: 'lmstudio',
+  baseURL: 'http://localhost:1234/v1',
+});
 
 // --- Base Provider Instances ---
 const google = createGoogleGenerativeAI({ apiKey: GOOGLE_GENERATIVE_AI_API_KEY });
@@ -15,6 +21,7 @@ export const myProvider = customProvider({
   languageModels: {
     'gemini-flash': google('models/gemini-1.5-flash-latest'),
     'gemini-pro': google('models/gemini-1.5-pro-latest'),
+	'local-model': lmstudio('local-model'), // 👈 Step 3: Add the local model
 
     // This is a special case with middleware, so we define it explicitly.
     'chat-model-reasoning': wrapLanguageModel({
