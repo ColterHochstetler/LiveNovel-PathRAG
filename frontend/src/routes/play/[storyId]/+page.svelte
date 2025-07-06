@@ -6,7 +6,7 @@
 	let { data } = $props();
 
 	// Initialize our reactive store when the component loads
-	gameStore.initialize(data.initialGameState, data.gameId);
+	gameStore.initialize(data.initialGameState, data.storyId);
 
 	// Disconnect when we leave the page to clean up the SSE connection
 	onDestroy(() => {

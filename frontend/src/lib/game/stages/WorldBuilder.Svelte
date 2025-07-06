@@ -1,15 +1,39 @@
 <script lang="ts">
-	import type { GameState, WorldCreationChoice } from '$lib/game/types';
+	import type { GameState } from '$lib/game/types';
 
-	// This extracts the specific type for the 'building_world' stage from the GameState union
+	// Import placeholder components we'll create next
+	import ProgressIndicator from './world-builder/ProgressIndicator.svelte';
+	import SuggestionBox from './world-builder/SuggestionBox.svelte';
+
+	// Import step-specific components
+	import VibeSelection from './world-builder/VibeSelection.svelte';
+	import WorldHookSelection from './world-builder/WorldHookSelection.svelte';
+	// ... import other step components as we build them
+
 	type WorldBuilderState = Extract<GameState, { stage: 'building_world' }>;
-
-	// Now, TypeScript knows `state.step`, `state.worldData`, etc. all exist here.
 	let { state }: { state: WorldBuilderState } = $props();
+
+	// Use derived runes for cleaner access in the template
+	const step = $derived(state.step);
+	const worldData = $derived(state.worldData);
+	const characterData = $derived(state.characterData);
 </script>
 
-<div class="p-4 border-2 border-blue-500 rounded">
-	<h1 class="text-2xl font-bold">Building World...</h1>
-	<p class="mt-2">Current Step: <span class="font-mono bg-blue-100 p-1 rounded">{state.step}</span></p>
-	<p class="mt-2 text-sm text-gray-600">{state.message}</p>
+<div class="space-y-6">
+	<ProgressIndicator currentStep={step} />
+
+	<div class="p-6 bg-white rounded-lg shadow-md">
+		<h2 class="text-xl font-semibold text-gray-700">{state.message}</h2>
+
+		<div class="mt-4">
+			{#if step === 'vibe_selection'}
+				<VibeSelection {worldData} />
+			{:else if step === 'world_hook_generation' || step === 'world_hook_selection'}
+				<WorldHookSelection {worldData} />
+			{:else}
+			{/if}
+		</div>
+	</div>
+
+	<SuggestionBox />
 </div>

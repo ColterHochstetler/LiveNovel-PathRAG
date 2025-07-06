@@ -7,13 +7,13 @@
  */
 
 import { browser } from '$app/environment';
-import type { GameState, WorldCreationChoice } from '$lib/game/types';
+import type { GameState, WorldCreationChoice, WorldGenerationData } from '$lib/game/types';
 
 // --- Core Reactive State ---
 
 let gameState = $state<GameState>({ stage: 'home' });
 let connectionStatus = $state<'connecting' | 'open' | 'closed' | 'error'>('closed');
-let currentGameId = $state<string | null>(null);
+let currentstoryId = $state<string | null>(null);
 
 let sse_connection: EventSource | null = null;
 
@@ -51,24 +51,26 @@ function handle_dm_chunk(event: MessageEvent) {
  * @param vibes An array of strings describing the desired feel.
  */
 async function createNewGame(vibes: string[]) {
-	// This will hit a new endpoint, e.g., POST /api/game
 	const response = await fetch(`/api/game`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ vibes })
 	});
 
-	// After this, we expect the server to create the game,
-	// and send us back the new game ID to initialize our connection.
-	const { gameId } = await response.json();
-	
-	// We'll need the initial state data from the server response too
-	// so we can initialize the store without waiting for the first SSE event.
-	// Let's assume the API returns the full initial GameState.
-	const initialData = await (await fetch(`/api/game/${gameId}`)).json();
+	if (!response.ok) {
+		console.error('Failed to create new game');
+		return;
+	}
 
-	// Now we can initialize our reactive store and SSE connection
-	initialize(initialData, gameId);
+	// Expect a response containing both the ID and the initial state
+	const { storyId, initialGameState } = await response.json();
+
+	if (!storyId || !initialGameState) {
+		console.error('Invalid response from server when creating game');
+		return;
+	}
+
+	initialize(initialGameState, storyId);
 }
 
 /**
@@ -76,16 +78,53 @@ async function createNewGame(vibes: string[]) {
  * @param choiceType The type of choice being made (e.g., 'world_hook', 'character_summary').
  * @param value The selected value.
  */
+
+
+/**
+ * Sends the current world generation data to the backend to advance to the next step.
+ * @param worldData The complete, updated world generation data object.
+ */
+async function advanceWorldCreation(worldData: WorldGenerationData) {
+	const storyId = currentstoryId;
+	if (!storyId) {
+		console.error('Cannot advance world creation: storyId is not set.');
+		return;
+	}
+
+	await fetch(`/api/game/${storyId}/advance-world-creation`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ worldData })
+	});
+	// The backend will process this and push a new GameState via SSE.
+}
+
+/**
+ * Sends a text prompt to the "suggestion box" to get new options from the DM.
+ * @param prompt The user's suggestion text.
+ */
+async function requestNewSuggestions(prompt: string) {
+	const storyId = currentstoryId;
+	if (!storyId) return;
+
+	await fetch(`/api/game/${storyId}/regenerate-suggestions`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ prompt })
+	});
+	// The backend will process this and push an updated GameState via SSE.
+}
+
 async function makeWorldCreationChoice(choice: WorldCreationChoice) {
-	const gameId = currentGameId;
-	if (!gameId) {
-		console.error('Cannot make choice: gameId is not set.');
+	const storyId = currentstoryId;
+	if (!storyId) {
+		console.error('Cannot make choice: storyId is not set.');
 		return;
 	}
 
 	// The entire 'choice' object, with its type and payload, is sent.
 	// This makes the backend endpoint much easier to parse and validate.
-	await fetch(`/api/game/${gameId}/world-creation-choice`, {
+	await fetch(`/api/game/${storyId}/world-creation-choice`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(choice)
@@ -95,17 +134,17 @@ async function makeWorldCreationChoice(choice: WorldCreationChoice) {
 /**
  * Initializes the game state from a server `load` function and establishes the SSE connection.
  * @param initialData The full GameState object from the initial page load.
- * @param gameId The unique ID of the game session.
+ * @param storyId The unique ID of the game session.
  */
-function initialize(initialData: GameState, gameId: string) {
+function initialize(initialData: GameState, storyId: string) {
 	gameState = initialData;
-	currentGameId = gameId;
+	currentstoryId = storyId;
 
 	if (!browser) return;
 	if (sse_connection) sse_connection.close();
 
 	connectionStatus = 'connecting';
-	const sse = new EventSource(`/api/game/${gameId}/events`);
+	const sse = new EventSource(`/api/game/${storyId}/events`);
 	sse_connection = sse;
 
 	sse.onopen = () => connectionStatus = 'open';
@@ -127,7 +166,7 @@ function disconnect() {
 		sse_connection = null;
 	}
 	connectionStatus = 'closed';
-	currentGameId = null;
+	currentstoryId = null;
 }
 
 /**
@@ -135,13 +174,13 @@ function disconnect() {
  * @param content The text content of the player's action.
  */
 async function performPlayerAction(content: string) {
-	const gameId = currentGameId;
-	if (!gameId) {
-		console.error('Cannot perform action: gameId is not set.');
+	const storyId = currentstoryId;
+	if (!storyId) {
+		console.error('Cannot perform action: storyId is not set.');
 		return;
 	}
 
-	await fetch(`/api/game/${gameId}/action`, {
+	await fetch(`/api/game/${storyId}/action`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ content })
@@ -161,6 +200,9 @@ export const gameStore = {
 	initialize,
 	disconnect,
 	performPlayerAction,
-  createNewGame,
-	makeWorldCreationChoice
+    createNewGame,
+	makeWorldCreationChoice,
+	advanceWorldCreation,
+	requestNewSuggestions
 };
+
