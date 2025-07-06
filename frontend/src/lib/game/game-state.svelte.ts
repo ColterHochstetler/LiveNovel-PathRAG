@@ -1,47 +1,117 @@
-import type { PlayerData, Scene, StoryThread, Story, GameState } from '$lib/game/types';
+/**
+ * Svelty-Pro Game State Management (v2)
+ *
+ * This file is the reactive heart of our application. It uses Svelte 5 runes
+ * to manage a central state object and handles all real-time communication
+ * with the backend via Server-Sent Events (SSE).
+ */
 
-// This would be populated by API calls
-let activeStoryId = $state<string | null>(null);
-let player = $state<PlayerData | null>(null);
-let currentScene = $state<Scene | null>(null);
-let allScenes= $state<Scene[] | null>(null);
+import { browser } from '$app/environment';
+import type { GameState } from '$lib/game/types';
 
-// UI-specific state derived from the UI description
+// --- Core Reactive State ---
+
 let gameState = $state<GameState>({ stage: 'home' });
-let selectedVibes = $state<string[]>([]);
-let progressStep = $state(0);
+let connectionStatus = $state<'connecting' | 'open' | 'closed' | 'error'>('closed');
+let currentGameId = $state<string | null>(null);
 
-// Example of a derived state for UI logic
-let canBeginCreatingWorld = $derived(selectedVibes.length > 2);
+let sse_connection: EventSource | null = null;
 
-// We export functions to modify the state, which will be called
-// by our components after they get data from the backend.
-export function initializeStory(story: Story) {
-  activeStoryId = story.id;
-  player = story.playerData;
-  allScenes = story.scenes
+// --- Private SSE Handlers ---
 
-  if (story.currentStage == "in_scene" && allScenes.length > 0) {
-    currentScene = allScenes[allScenes.length - 1];
-  } else {
-    currentScene = null;
-  };
-
-}
-export function updateGameState(newState: GameState) {
-  gameState = newState;
+function handle_state_update(event: MessageEvent) {
+	try {
+		const newState: GameState = JSON.parse(event.data);
+		gameState = newState;
+	} catch (e) {
+		console.error('Failed to parse state update:', e);
+	}
 }
 
-export function getCurrentGameState() {
-  return gameState;
+function handle_dm_chunk(event: MessageEvent) {
+	if (gameState.stage !== 'in_scene') return;
+	try {
+		const chunk: { messageId: string; content: string } = JSON.parse(event.data);
+		if (!chunk.messageId || !chunk.content) return;
+
+		const message_to_update = gameState.scene.narrativeMessages.find((m) => m.id === chunk.messageId);
+		if (message_to_update) {
+			message_to_update.content += chunk.content;
+		}
+	} catch (e) {
+		console.error('Failed to parse DM chunk:', e);
+	}
 }
 
-// Export the reactive state itself for components to use
-export const gameState = {
-  get activeStoryId() { return activeStoryId },
-  get player() { return player },
-  get currentScene() { return currentScene },
-  get currentStage() { return currentStage },
-  get selectedVibes() { return selectedVibes },
-  get canBeginCreatingWorld() { return canBeginCreatingWorld },
+// --- Public API ---
+
+/**
+ * Initializes the game state from a server `load` function and establishes the SSE connection.
+ * @param initialData The full GameState object from the initial page load.
+ * @param gameId The unique ID of the game session.
+ */
+function initialize(initialData: GameState, gameId: string) {
+	gameState = initialData;
+	currentGameId = gameId;
+
+	if (!browser) return;
+	if (sse_connection) sse_connection.close();
+
+	connectionStatus = 'connecting';
+	const sse = new EventSource(`/api/game/${gameId}/events`);
+	sse_connection = sse;
+
+	sse.onopen = () => connectionStatus = 'open';
+	sse.onerror = () => {
+		connectionStatus = 'error';
+		sse.close();
+	};
+
+	sse.addEventListener('state_update', handle_state_update);
+	sse.addEventListener('dm_chunk', handle_dm_chunk);
 }
+
+/**
+ * Disconnects from the game's event stream.
+ */
+function disconnect() {
+	if (sse_connection) {
+		sse_connection.close();
+		sse_connection = null;
+	}
+	connectionStatus = 'closed';
+	currentGameId = null;
+}
+
+/**
+ * Sends a player's action to the backend.
+ * @param content The text content of the player's action.
+ */
+async function performPlayerAction(content: string) {
+	const gameId = currentGameId;
+	if (!gameId) {
+		console.error('Cannot perform action: gameId is not set.');
+		return;
+	}
+
+	await fetch(`/api/game/${gameId}/action`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ content })
+	});
+}
+
+/**
+ * The exported "store" object that our Svelte components will interact with.
+ */
+export const gameStore = {
+	get state(): Readonly<GameState> {
+		return gameState;
+	},
+	get connectionStatus() {
+		return connectionStatus;
+	},
+	initialize,
+	disconnect,
+	performPlayerAction
+};
