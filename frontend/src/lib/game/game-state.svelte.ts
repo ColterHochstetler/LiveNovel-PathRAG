@@ -7,7 +7,7 @@
  */
 
 import { browser } from '$app/environment';
-import type { GameState } from '$lib/game/types';
+import type { GameState, WorldCreationChoice } from '$lib/game/types';
 
 // --- Core Reactive State ---
 
@@ -44,6 +44,53 @@ function handle_dm_chunk(event: MessageEvent) {
 }
 
 // --- Public API ---
+
+
+/**
+ * Starts a new game world creation process based on initial vibes.
+ * @param vibes An array of strings describing the desired feel.
+ */
+async function createNewGame(vibes: string[]) {
+	// This will hit a new endpoint, e.g., POST /api/game
+	const response = await fetch(`/api/game`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ vibes })
+	});
+
+	// After this, we expect the server to create the game,
+	// and send us back the new game ID to initialize our connection.
+	const { gameId } = await response.json();
+	
+	// We'll need the initial state data from the server response too
+	// so we can initialize the store without waiting for the first SSE event.
+	// Let's assume the API returns the full initial GameState.
+	const initialData = await (await fetch(`/api/game/${gameId}`)).json();
+
+	// Now we can initialize our reactive store and SSE connection
+	initialize(initialData, gameId);
+}
+
+/**
+ * Sends a player's choice during world generation to the backend.
+ * @param choiceType The type of choice being made (e.g., 'world_hook', 'character_summary').
+ * @param value The selected value.
+ */
+async function makeWorldCreationChoice(choice: WorldCreationChoice) {
+	const gameId = currentGameId;
+	if (!gameId) {
+		console.error('Cannot make choice: gameId is not set.');
+		return;
+	}
+
+	// The entire 'choice' object, with its type and payload, is sent.
+	// This makes the backend endpoint much easier to parse and validate.
+	await fetch(`/api/game/${gameId}/world-creation-choice`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(choice)
+	});
+}
 
 /**
  * Initializes the game state from a server `load` function and establishes the SSE connection.
@@ -113,5 +160,7 @@ export const gameStore = {
 	},
 	initialize,
 	disconnect,
-	performPlayerAction
+	performPlayerAction,
+  createNewGame,
+	makeWorldCreationChoice
 };
